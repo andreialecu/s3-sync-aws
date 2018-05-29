@@ -27,6 +27,7 @@ function s3syncer(db, options) {
   options.force = !!options.force
   options.accessKeyId = options.accessKeyId || options.key
   options.secretAccessKey = options.secretAccessKey || options.secret
+  options.sessionToken = options.sessionToken || null
 
   var client = new AWS.S3(options)
     , queue = createQueue(options.concurrency)
