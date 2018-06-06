@@ -146,7 +146,7 @@ function s3syncer(db, options) {
   function getCache(callback) {
     callback = once(callback)
 
-    client.getObject({
+    var res = client.getObject({
       Bucket: options.bucket,
       Key: options.cacheDest
     }).createReadStream()
