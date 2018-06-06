@@ -35,15 +35,15 @@ function s3syncer(db, options) {
     , subdomain = region ? 's3-' + region : 's3'
     , protocol = secure ? 'https' : 'http'
     , prefix = options.prefix || ''
-    , hashkey = options.hashKey || function(details) {
+    , hashkey = options.hashKey || function (details) {
       return details.fullPath
     }
 
-  var stream = es.map(function(data, next) {
-    queue.defer(function(details, done) {
+  var stream = es.map(function (data, next) {
+    queue.defer(function (details, done) {
       details.fullPath = details.fullPath || details.src
       details.path = details.path || details.dest
-      syncFile(details, function(err) {
+      syncFile(details, function (err) {
         return err ? next(err) : done(), next(null, details)
       })
     }, data)
@@ -61,13 +61,13 @@ function s3syncer(db, options) {
     relative = relative.replace(/\\/g, '/')
 
     var destination =
-          protocol + '://'
-        + subdomain
-        + '.amazonaws.com/'
-        + options.bucket
-        + '/' + relative
+      protocol + '://'
+      + subdomain
+      + '.amazonaws.com/'
+      + options.bucket
+      + '/' + relative
 
-    hashFile(absolute, destination, function(err, md5) {
+    hashFile(absolute, destination, function (err, md5) {
       if (err) return next(err)
       details.md5 = md5
       details.url = destination
@@ -78,12 +78,12 @@ function s3syncer(db, options) {
 
       var key = 'md5:' + hashkey(details)
 
-      db.get(key, function(err, result) {
+      db.get(key, function (err, result) {
         if (!err && result === md5) {
           details.cached = true
           return next(null, details)
         }
-        checkForUpload(function(err) {
+        checkForUpload(function (err) {
           if (err) return next(err)
           db.put(key, md5, next)
         })
@@ -91,13 +91,13 @@ function s3syncer(db, options) {
     })
 
     function checkForUpload(next) {
-      client.headObject({Bucket: options.bucket, Key: relative}, function(err, res) {
+      client.headObject({ Bucket: options.bucket, Key: relative }, function (err, res) {
         if (err && err.statusCode !== 404) return next(err)
         if (err && err.statusCode === 404) return uploadFile(details, next)
         if (
           options.force || (
-          res.Metadata['syncfilehash'] !== details.md5
-        )) return uploadFile(details, next)
+            res.Metadata['syncfilehash'] !== details.md5
+          )) return uploadFile(details, next)
         return next(null, details)
       })
     }
@@ -115,9 +115,9 @@ function s3syncer(db, options) {
     details.fresh = true
 
     off.failAfter(options.retries)
-    off.on('fail', function() {
+    off.on('fail', function () {
       next(lasterr || new Error('unknown error'))
-    }).on('ready', function() {
+    }).on('ready', function () {
       var params = xtend({
         Bucket: options.bucket,
         Key: relative,
@@ -129,7 +129,7 @@ function s3syncer(db, options) {
         Body: fs.createReadStream(absolute)
       }, options.headers)
 
-      client.putObject(params, function(err, res) {
+      client.putObject(params, function (err, res) {
         if (err) {
           err = new Error('Bad status code: ' + err.statusCode)
         } else {
@@ -149,18 +149,19 @@ function s3syncer(db, options) {
     client.getObject({
       Bucket: options.bucket,
       Key: options.cacheDest
-    }, function(err, res) {
-      if (err && err.statusCode !== 404) return callback(err)
-      if (err && err.statusCode === 404) return callback(null)
+    }).createReadStream()
 
-      es.pipeline(
-          res
-        , es.split()
-        , es.parse()
-        , LevelWriteStream(db)()
-      ).once('close', callback)
-       .once('error', callback)
-    })
+    es.pipeline(
+      res
+      , es.split()
+      , es.parse()
+      , LevelWriteStream(db)()
+    )
+      .once('close', callback)
+      .once('error', (err) => {
+        if (err && err.statusCode !== 404) return callback(err)
+        if (err && err.statusCode === 404) return callback(null)
+      })
   }
 
   function putCache(callback) {
@@ -170,16 +171,16 @@ function s3syncer(db, options) {
       .pipe(es.stringify())
       .pipe(fs.createWriteStream(options.cacheSrc))
       .once('error', callback)
-      .once('close', function() {
+      .once('close', function () {
         client.putObject({
           Bucket: options.bucket,
           Key: options.cacheDest,
           Body: fs.createReadStream(options.cacheSrc)
-        }, function(err) {
+        }, function (err) {
           if (err) return callback(err)
           fs.unlink(options.cacheSrc, callback)
         })
-     })
+      })
   }
 
   function hashFile(filename, destination, callback) {
@@ -187,16 +188,16 @@ function s3syncer(db, options) {
       , done = false
 
     hash.update(JSON.stringify([
-        options.headers
+      options.headers
       , destination
     ]))
 
-    fs.createReadStream(filename).on('data', function(d) {
+    fs.createReadStream(filename).on('data', function (d) {
       hash.update(d)
-    }).once('error', function(err) {
+    }).once('error', function (err) {
       if (!done) callback(err)
       done = true
-    }).once('close', function() {
+    }).once('close', function () {
       if (!done) callback(null, hash.digest('hex'))
       done = true
     })
