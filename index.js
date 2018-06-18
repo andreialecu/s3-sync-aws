@@ -150,18 +150,22 @@ function s3syncer(db, options) {
       Bucket: options.bucket,
       Key: options.cacheDest
     }).createReadStream()
-
-    es.pipeline(
-      res
-      , es.split()
-      , es.parse()
-      , LevelWriteStream(db)()
-    )
+      .pipe(es.split())
+      .pipe(es.stringify())
+      .pipe(es.parse())
+      .pipe(es.map((data, cb) => {
+        if (data == null) {
+          callback();
+        } else {
+          callback(null, data);
+        }
+      }))
+      .pipe(LevelWriteStream(db)())
       .once('close', callback)
       .once('error', (err) => {
         if (err && err.statusCode !== 404) return callback(err)
         if (err && err.statusCode === 404) return callback(null)
-      })
+      });
   }
 
   function putCache(callback) {
