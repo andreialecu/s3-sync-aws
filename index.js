@@ -146,21 +146,25 @@ function s3syncer(db, options) {
   function getCache(callback) {
     callback = once(callback)
 
-    client.getObject({
+    var readStream = client.getObject({
       Bucket: options.bucket,
       Key: options.cacheDest
-    }, function(err, res) {
-      if (err && err.statusCode !== 404) return callback(err)
-      if (err && err.statusCode === 404) return callback(null)
+    }).createReadStream();
 
-      es.pipeline(
-          res
-        , es.split()
-        , es.parse()
-        , LevelWriteStream(db)()
-      ).once('close', callback)
-       .once('error', callback)
-    })
+    es.pipeline(
+      readStream
+      , es.split()
+      , es.parse()
+      , LevelWriteStream(db)()
+    )
+      .once('close', callback)
+      .once('error', function(err) {
+        if (err && err.statusCode === 404) {
+          return callback(null)
+        } else {
+          return callback(err);
+        }
+      });
   }
 
   function putCache(callback) {
